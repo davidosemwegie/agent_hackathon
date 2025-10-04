@@ -1,0 +1,27 @@
+{
+    "intents": {
+        "settings": {
+            "update-name": {
+                "fields": {
+                    "firstName": {
+                        "type": "string",
+                        "required": true
+                    },
+                    "lastName": {
+                        "type": "string",
+                        "required": true
+                    }
+                },
+                "actions": {
+                    "update": {
+                        "description": "Update the user's name",
+                        "parameters": {
+                            "firstName": "string",
+                            "lastName": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
