@@ -38,7 +38,7 @@ export const datadogTool = tool({
   execute: async ({
     userMessage,
     searchType = "auto",
-    timeRange = "now-1h",
+    timeRange = "now-5m",
     additionalContext,
   }) => {
     try {
@@ -405,10 +405,14 @@ async function performDatadogSearch(params: {
 
         if (validationError) {
           const r = validationError as Record<string, unknown>;
-          conciseError = `Validation error detected: ${r.message || "form field issue"}`;
+          conciseError = `Validation error detected: ${
+            r.message || "form field issue"
+          }`;
         } else {
           const r = results[0] as Record<string, unknown>;
-          conciseError = `System error: ${r.message || "backend issue detected"}`;
+          conciseError = `System error: ${
+            r.message || "backend issue detected"
+          }`;
         }
       }
       break;
@@ -496,4 +500,3 @@ function buildSearchQuery(
 
   return queryParts.join(" AND ");
 }
-

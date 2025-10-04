@@ -47,11 +47,15 @@ const Widget = () => {
   const [completedActions, setCompletedActions] = useState<Set<string>>(
     new Set()
   );
+  const [conversationId, setConversationId] = useState<string | undefined>();
+  const [userId] = useState("default-user"); // TODO: Get from actual user context
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       body: {
         affordances: collectAffordances(),
+        conversationId,
+        userId,
       },
     }),
   });

@@ -10,6 +10,8 @@ import { actorTool } from "./actor-tool";
 import { selectorTool } from "./selector-tool";
 import { intentTool } from "./intent-tool";
 import { datadogTool } from "./datadog-tool";
+import { conversationLogger } from "@/lib/conversation-logger";
+import { nanoid } from "nanoid";
 
 // Type for affordances
 interface Affordance {
@@ -91,10 +93,34 @@ export async function POST(req: Request) {
   const {
     messages,
     affordances,
-  }: { messages: UIMessage[]; affordances?: Affordance[] } = body;
+    conversationId: existingConversationId,
+    userId = 'default-user',
+  }: {
+    messages: UIMessage[];
+    affordances?: Affordance[];
+    conversationId?: string;
+    userId?: string;
+  } = body;
+
+  // Create or use existing conversation
+  const conversationId = existingConversationId || await conversationLogger.createConversation({
+    userId,
+    title: messages[0]?.content?.substring(0, 100) || 'New Conversation',
+  });
 
   for (const message of messages) {
     console.log("Message parts:", message.parts);
+  }
+
+  // Log user messages
+  for (const message of messages) {
+    if (message.role === 'user') {
+      await conversationLogger.logMessage({
+        conversationId,
+        role: 'user',
+        content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content),
+      });
+    }
   }
 
   // Create system message with affordances context
@@ -178,11 +204,48 @@ Always pass the full affordances list to the selector tool.
       isEnabled: true,
     },
     // Add step callbacks for better streaming experience
-    onStepFinish: (step) => {
+    onStepFinish: async (step) => {
       console.log(`Step finished:`, {
         toolCalls: step.toolCalls?.length || 0,
         text: step.text?.slice(0, 100) + "...",
       });
+
+      // Log assistant messages
+      if (step.text) {
+        await conversationLogger.logMessage({
+          conversationId,
+          role: 'assistant',
+          content: step.text,
+        });
+      }
+
+      // Log tool uses
+      if (step.toolCalls && step.toolCalls.length > 0) {
+        for (const toolCall of step.toolCalls) {
+          const startTime = Date.now();
+          try {
+            await conversationLogger.logToolUse({
+              conversationId,
+              messageId: nanoid(),
+              toolName: toolCall.toolName,
+              input: JSON.stringify(toolCall.args),
+              output: JSON.stringify(step.toolResults?.find(r => r.toolCallId === toolCall.toolCallId)?.result || {}),
+              durationMs: Date.now() - startTime,
+              status: 'success',
+            });
+          } catch (error) {
+            await conversationLogger.logToolUse({
+              conversationId,
+              messageId: nanoid(),
+              toolName: toolCall.toolName,
+              input: JSON.stringify(toolCall.args),
+              output: JSON.stringify({ error: String(error) }),
+              durationMs: Date.now() - startTime,
+              status: 'error',
+            });
+          }
+        }
+      }
     },
   });
 
