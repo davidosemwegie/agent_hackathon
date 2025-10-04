@@ -16,6 +16,7 @@ import {
 import { Input } from "../ui/input";
 
 // Popular email providers to block
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const POPULAR_EMAIL_PROVIDERS = [
   "gmail.com",
   "yahoo.com",

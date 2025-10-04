@@ -26,6 +26,11 @@ export const AffordanceSchema = z.object({
 export type Affordance = z.infer<typeof AffordanceSchema>;
 
 export function collectAffordances(max = 400): Affordance[] {
+  // Guard against SSR - return empty array if document is not available
+  if (typeof document === "undefined") {
+    return [];
+  }
+
   const els = Array.from(
     document.querySelectorAll<HTMLElement>(
       [

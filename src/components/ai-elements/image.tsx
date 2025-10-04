@@ -13,6 +13,7 @@ export const Image = ({
   mediaType,
   ...props
 }: ImageProps) => (
+  // eslint-disable-next-line @next/next/no-img-element
   <img
     {...props}
     alt={props.alt}

@@ -11,8 +11,20 @@ export interface PageSnapshot {
 /**
  * Collects a simplified snapshot of the current page for the agent
  * This includes cleaned HTML, metadata, and visible text content
+ * Only runs in browser environment (client-side)
  */
 export function collectPageSnapshot(): PageSnapshot {
+  // Guard against SSR - return empty snapshot if document is not available
+  if (typeof document === "undefined" || typeof window === "undefined") {
+    return {
+      html: "",
+      title: "",
+      url: "",
+      timestamp: Date.now(),
+      visibleTextContent: "",
+    };
+  }
+
   try {
     // Get simplified HTML (remove scripts, styles, hidden elements)
     const cleanHTML = simplifyHTML(document.body);
@@ -134,8 +146,14 @@ function getVisibleText(): string {
 /**
  * Gets a compact representation of the page structure
  * showing main semantic elements and their hierarchy
+ * Only runs in browser environment (client-side)
  */
 export function getPageStructureSummary(): string {
+  // Guard against SSR
+  if (typeof document === "undefined") {
+    return "";
+  }
+
   const summary: string[] = [];
 
   // Find main semantic elements

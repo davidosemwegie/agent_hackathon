@@ -90,6 +90,7 @@ export function PromptInputAttachment({
       {...props}
     >
       {data.mediaType?.startsWith("image/") && data.url ? (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           alt={data.filename || "attachment"}
           className="size-full rounded-md object-cover"

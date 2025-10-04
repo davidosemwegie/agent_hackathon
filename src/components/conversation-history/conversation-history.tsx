@@ -42,6 +42,7 @@ export function ConversationHistory({
 
   useEffect(() => {
     loadConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const deleteConversation = async (conversationId: string) => {

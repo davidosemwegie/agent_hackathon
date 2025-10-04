@@ -49,7 +49,7 @@ const Widget = () => {
   const [completedActions, setCompletedActions] = useState<Set<string>>(
     new Set()
   );
-  const [conversationId, setConversationId] = useState<string | undefined>();
+  const [conversationId] = useState<string | undefined>();
   const [userId] = useState("default-user"); // TODO: Get from actual user context
   const [showFeedback, setShowFeedback] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);

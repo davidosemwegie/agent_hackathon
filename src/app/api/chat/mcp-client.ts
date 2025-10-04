@@ -260,8 +260,7 @@ export class DatadogMCPClient {
   private sanitizeData<T>(data: unknown[] | unknown): T[] {
     const items = Array.isArray(data) ? data : [data];
     return items.map((item) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sanitized = { ...item } as any;
+      const sanitized = { ...item } as Record<string, unknown>;
 
       // Remove sensitive fields
       delete sanitized.trace_id;
@@ -277,8 +276,8 @@ export class DatadogMCPClient {
       delete sanitized.secret;
 
       // Sanitize messages to remove sensitive data
-      if (sanitized.message) {
-        sanitized.message = sanitized.message
+      if (sanitized.message && typeof sanitized.message === "string") {
+        sanitized.message = (sanitized.message as string)
           .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, "[IP]")
           .replace(
             /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
