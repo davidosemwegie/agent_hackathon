@@ -47,12 +47,12 @@ export async function POST(req: NextRequest) {
       throw error;
     }
 
-    // Validate email format
-    if (!EMAIL_REGEX.test(email)) {
-      const error = new Error("Email is invalid");
-      console.error("Email validation error:", error.message, { email });
-      throw error;
-    }
+    // // Validate email format
+    // if (!EMAIL_REGEX.test(email)) {
+    //   const error = new Error("Email is invalid");
+    //   console.error("Email validation error:", error.message, { email });
+    //   throw error;
+    // }
 
     // Check if email is from a popular provider (not a work email)
     if (isPopularEmailProvider(email)) {
