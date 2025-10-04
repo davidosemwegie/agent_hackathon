@@ -18,7 +18,7 @@ import { Input } from "../ui/input";
 const formSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Please enter a valid email address"),
+  email: z.string(),
 });
 
 export function SetUserForm() {
@@ -104,7 +104,7 @@ export function SetUserForm() {
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <Input
-                  type="email"
+                  type="text"
                   placeholder="Email Address"
                   {...field}
                   onChange={(e) => field.onChange(e.target.value)}
