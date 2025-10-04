@@ -17,6 +17,23 @@ import { useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { Response } from "@/components/ai-elements/response";
 import { DefaultChatTransport } from "ai";
+import {
+  Reasoning,
+  ReasoningTrigger,
+  ReasoningContent,
+} from "@/components/ai-elements/reasoning";
+import {
+  Tool,
+  ToolHeader,
+  ToolContent,
+  ToolInput,
+  ToolOutput,
+} from "@/components/ai-elements/tool";
+// Additional AI SDK components available for future use:
+// import { Image } from "@/components/ai-elements/image";
+// import { Artifact, ArtifactHeader, ArtifactTitle, ArtifactContent } from "@/components/ai-elements/artifact";
+// import { Sources, SourcesTrigger, SourcesContent, Source } from "@/components/ai-elements/sources";
+// import { ChainOfThought, ChainOfThoughtContent } from "@/components/ai-elements/chain-of-thought";
 
 const Widget = () => {
   const [input, setInput] = useState("");
@@ -59,16 +76,90 @@ const Widget = () => {
                   <Message from={message.role} key={message.id}>
                     <MessageContent>
                       {message.parts.map((part, i) => {
-                        switch (part.type) {
-                          case "text": // we don't use any reasoning or tool calls in this example
-                            return (
-                              <Response key={`${message.id}-${i}`}>
-                                {part.text}
-                              </Response>
-                            );
-                          default:
-                            return null;
+                        // Handle different message part types
+                        if (part.type === "text") {
+                          return (
+                            <Response key={`${message.id}-${i}`}>
+                              {part.text}
+                            </Response>
+                          );
                         }
+
+                        if (part.type === "reasoning") {
+                          return (
+                            <Reasoning
+                              key={`${message.id}-${i}`}
+                              isStreaming={status === "streaming"}
+                              defaultOpen={true}
+                            >
+                              <ReasoningTrigger />
+                              <ReasoningContent>
+                                {String(
+                                  (part as Record<string, unknown>).content ||
+                                    (part as Record<string, unknown>)
+                                      .reasoning ||
+                                    "Thinking..."
+                                )}
+                              </ReasoningContent>
+                            </Reasoning>
+                          );
+                        }
+
+                        // Handle tool calls (any tool-* type)
+                        if (part.type.startsWith("tool-") && "state" in part) {
+                          const toolPart = part as Record<string, unknown>;
+                          return (
+                            <Tool
+                              key={`${message.id}-${i}`}
+                              defaultOpen={
+                                toolPart.state === "output-available"
+                              }
+                            >
+                              <ToolHeader
+                                title={part.type.split("-").slice(1).join("-")}
+                                type={part.type as `tool-${string}`}
+                                state={
+                                  toolPart.state as
+                                    | "input-streaming"
+                                    | "input-available"
+                                    | "output-available"
+                                    | "output-error"
+                                }
+                              />
+                              <ToolContent>
+                                <ToolInput input={toolPart.input} />
+                                <ToolOutput
+                                  output={toolPart.output}
+                                  errorText={
+                                    toolPart.errorText as string | undefined
+                                  }
+                                />
+                              </ToolContent>
+                            </Tool>
+                          );
+                        }
+
+                        // Handle step markers and other non-renderable types
+                        if (part.type === "step-start") {
+                          return null;
+                        }
+
+                        // Fallback for unknown types - show debug info in development
+                        if (process.env.NODE_ENV === "development") {
+                          return (
+                            <div
+                              key={`${message.id}-${i}`}
+                              className="my-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs"
+                            >
+                              <strong>Unknown part type:</strong> {part.type}
+                              <pre className="mt-1 text-xs overflow-auto">
+                                {JSON.stringify(part, null, 2)}
+                              </pre>
+                            </div>
+                          );
+                        }
+
+                        return null;
                       })}
                     </MessageContent>
                   </Message>

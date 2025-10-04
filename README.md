@@ -1,4 +1,12 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a [Next.js](https://nextjs.org) project with AI-powered chat functionality using the AI SDK, featuring reasoning capabilities and tool usage.
+
+## Features
+
+- **AI Chat Interface**: Interactive chat widget with streaming responses
+- **Reasoning Display**: Shows AI reasoning process with collapsible interface
+- **Tool Usage**: Displays tool calls and their results (e.g., weather API)
+- **Weather Integration**: Real-time weather data with fallback to mock data
+- **Modern UI**: Built with Tailwind CSS and shadcn/ui components
 
 ## Getting Started
 
@@ -16,9 +24,25 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Weather API Setup (Optional)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+To enable real weather data, you can set up a free OpenWeatherMap API key:
+
+1. Sign up at [OpenWeatherMap](https://openweathermap.org/api)
+2. Get your free API key
+3. Create a `.env.local` file in the root directory:
+   ```
+   OPENWEATHER_API_KEY=your_api_key_here
+   ```
+
+If no API key is provided, the app will use mock weather data for demonstration purposes.
+
+## Usage
+
+- Start a conversation by typing a message
+- Ask for weather information: "What's the weather in New York?"
+- The AI will show its reasoning process and use the weather tool
+- Tool calls are displayed with input parameters and results
 
 ## Learn More
 
