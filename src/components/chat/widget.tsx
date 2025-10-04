@@ -33,7 +33,7 @@ const Widget = () => {
   };
 
   return (
-    <div className=" size-full p-4">
+    <div className=" size-full p-4  pt-10">
       <div className="flex flex-col h-full">
         <Conversation>
           <ConversationContent>
