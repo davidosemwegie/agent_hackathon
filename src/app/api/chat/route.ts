@@ -95,11 +95,19 @@ export async function POST(req: Request) {
   const {
     messages,
     affordances,
+    pageSnapshot,
     conversationId: existingConversationId,
     userId = "default-user",
   }: {
     messages: UIMessage[];
     affordances?: Affordance[];
+    pageSnapshot?: {
+      html: string;
+      title: string;
+      url: string;
+      timestamp: number;
+      visibleTextContent: string;
+    };
     conversationId?: string;
     userId?: string;
   } = body;
@@ -140,7 +148,7 @@ export async function POST(req: Request) {
     2
   );
 
-  // Create system message with affordances context
+  // Create system message with page context
   const systemMessage = {
     role: "system" as const,
     content: `You are a helpful AI assistant that helps users interact with web pages and troubleshoot issues.
@@ -161,26 +169,44 @@ export async function POST(req: Request) {
 ${successfulExamples}
 
 ${
+  pageSnapshot
+    ? `
+**Current Page Context:**
+- URL: ${pageSnapshot.url}
+- Title: ${pageSnapshot.title}
+
+**Page Structure (Simplified HTML):**
+\`\`\`html
+${pageSnapshot.html.slice(0, 8000)}
+\`\`\`
+
+**Visible Text Content Preview:**
+${pageSnapshot.visibleTextContent.slice(0, 1000)}...
+`
+    : ""
+}
+
+${
   affordances && affordances.length > 0
     ? `
-**Available page elements:**
+**Available Interactive Elements (Affordances):**
 ${affordances
   .map(
     (aff: Affordance) =>
       `- ${
         aff.name || aff.text || "Unnamed element"
-      } (${aff.tag.toLowerCase()}) - ${
+      } (${aff.tag.toLowerCase()}) - Selector: ${
         aff.selector || aff.cssPath || "unknown"
       }`
   )
   .join("\n")}
 
 **For page interactions, follow this sequence:**
-1. Use intent tool to understand what they want to do
-2. Use selector tool to find the right element (pass the affordancesContext parameter with the full affordances list)
+1. Use intent tool to understand what the user wants to do
+2. Use selector tool to find the right element (use both HTML structure and affordances)
 3. Use actor tool to perform the action
 
-Always pass the affordancesContext parameter to the selector tool with the full affordances list from above.
+The HTML structure shows you the page layout and context. The affordances list shows you the exact selectors for interactive elements. Use both together for the best results.
 `
     : ""
 }`,

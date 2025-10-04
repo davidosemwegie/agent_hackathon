@@ -357,6 +357,10 @@ export class Actor {
     if (!element) {
       throw new Error(`Element not found with selector: ${selector}`);
     }
+
+    if (element instanceof HTMLElement) {
+      element.focus();
+    }
   }
 
   blur(selector: string) {
@@ -364,6 +368,10 @@ export class Actor {
 
     if (!element) {
       throw new Error(`Element not found with selector: ${selector}`);
+    }
+
+    if (element instanceof HTMLElement) {
+      element.blur();
     }
   }
 

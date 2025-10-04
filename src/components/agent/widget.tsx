@@ -31,6 +31,7 @@ import {
   ToolOutput,
 } from "@/components/ai-elements/tool";
 import { collectAffordances } from "./find-affordances";
+import { collectPageSnapshot } from "./collect-html-snapshot";
 import { FeedbackWidget } from "@/components/feedback-widget/feedback-widget";
 // Additional AI SDK components available for future use:
 // import { Image } from "@/components/ai-elements/image";
@@ -56,6 +57,7 @@ const Widget = () => {
     transport: new DefaultChatTransport({
       body: {
         affordances: collectAffordances(),
+        pageSnapshot: collectPageSnapshot(),
         conversationId,
         userId,
       },
@@ -134,10 +136,22 @@ const Widget = () => {
             actorMethod as string
           ];
           if (typeof method === "function") {
-            const result = await method.call(
-              actor,
-              ...Object.values(actorParams as Record<string, unknown>)
-            );
+            // Smart parameter construction to handle complex objects properly
+            const params = actorParams as Record<string, unknown>;
+            const paramsList: unknown[] = [];
+
+            // Build parameter list in the correct order for the method
+            if (params.selector) paramsList.push(params.selector);
+            if (params.text !== undefined) paramsList.push(params.text);
+            if (params.x !== undefined) paramsList.push(params.x);
+            if (params.y !== undefined) paramsList.push(params.y);
+            if (params.timeout !== undefined) paramsList.push(params.timeout);
+            if (params.simulateTyping !== undefined)
+              paramsList.push(params.simulateTyping);
+            if (params.scrollOptions !== undefined)
+              paramsList.push(params.scrollOptions);
+
+            const result = await method.call(actor, ...paramsList);
             console.log(
               `✅ Actor action '${actorMethod}' completed successfully`,
               result

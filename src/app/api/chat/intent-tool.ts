@@ -1,19 +1,75 @@
 import { tool } from "ai";
 import z from "zod";
+import {
+  matchIntentFromUserRequest,
+  extractFieldsFromRequest,
+  validateIntent,
+  formatIntentForDisplay,
+  getIntentActions,
+} from "@/lib/intent-config";
 
 // Intent understanding tool for parsing user requests into structured actions
 export const intentTool = tool({
   description:
-    "Parse user intent and extract the action they want to perform and the target element",
+    "Parse user intent and extract the action they want to perform and the target element. First checks against defined intents in umbrellamode.json, then falls back to natural language parsing.",
   inputSchema: z.object({
     userRequest: z
       .string()
       .describe(
-        "The user's natural language request (e.g., 'click the submit button', 'type my email in the email field', 'scroll to the top')"
+        "The user's natural language request (e.g., 'click the submit button', 'type my email in the email field', 'update my name to John Doe')"
       ),
+    category: z
+      .string()
+      .optional()
+      .describe("Optional intent category to narrow search (e.g., 'settings')"),
   }),
-  execute: async ({ userRequest }) => {
+  execute: async ({ userRequest, category }) => {
     try {
+      // First, try to match against defined intents in umbrellamode.json
+      const intentMatch = matchIntentFromUserRequest(
+        userRequest,
+        category
+      );
+
+      if (intentMatch && intentMatch.confidence !== "low") {
+        // Extract field values from the request
+        const extractedFields = extractFieldsFromRequest(
+          userRequest,
+          intentMatch.config
+        );
+
+        // Validate extracted data
+        const validation = validateIntent(
+          intentMatch.category,
+          intentMatch.intentName,
+          extractedFields as Record<string, unknown>
+        );
+
+        // Get available actions for this intent
+        const actions = getIntentActions(
+          intentMatch.category,
+          intentMatch.intentName
+        );
+
+        return {
+          success: true,
+          intentType: "structured",
+          category: intentMatch.category,
+          intentName: intentMatch.intentName,
+          confidence: intentMatch.confidence,
+          fields: extractedFields,
+          validation: validation,
+          actions: actions,
+          formattedIntent: formatIntentForDisplay(
+            intentMatch.category,
+            intentMatch.intentName
+          ),
+          message: `Matched structured intent: ${intentMatch.category}/${intentMatch.intentName}`,
+          originalRequest: userRequest,
+        };
+      }
+
+      // Fallback to natural language parsing
       const request = userRequest.toLowerCase().trim();
 
       // Extract action type
@@ -166,6 +222,7 @@ export const intentTool = tool({
 
       return {
         success: true,
+        intentType: "natural_language",
         message: `Parsed user intent: ${action} ${target}`,
         action,
         target,
