@@ -1,6 +1,6 @@
 "use client";
 
-import Widget from "@/components/chat/widget";
+import Widget from "@/components/agent/widget";
 import {
   ResizableHandle,
   ResizablePanel,
