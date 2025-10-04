@@ -212,9 +212,7 @@ export default function EvalsPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-medium">{tool.tool_name}</h3>
-                    <Badge variant="outline">
-                      {tool.usage_count} uses
-                    </Badge>
+                    <Badge variant="outline">{tool.usage_count} uses</Badge>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
