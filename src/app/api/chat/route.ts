@@ -1,3 +1,5 @@
+export const maxDuration = 30 * 60; // 30 minutes in seconds
+
 import {
   streamText,
   UIMessage,
@@ -30,9 +32,6 @@ interface Affordance {
   cssPath: string;
   selector: string;
 }
-
-// Allow streaming responses up to 30 seconds
-export const maxDuration = 30;
 
 // Real weather API function
 async function getWeatherData(location: string) {
