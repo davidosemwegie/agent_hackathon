@@ -2,6 +2,7 @@
 
 import { SetUserForm } from "@/components/set-user-form/set-user-form";
 import { Actor } from "../../director";
+import Widget from "@/components/chat/widget";
 
 export default function Home() {
   const actor = new Actor();
@@ -24,6 +25,7 @@ export default function Home() {
     <div className="flex flex-col items-center justify-center h-screen">
       <SetUserForm />
       <button onClick={handleClick}>Click me</button>
+      <Widget />
     </div>
   );
 }
