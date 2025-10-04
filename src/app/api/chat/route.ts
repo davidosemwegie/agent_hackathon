@@ -169,16 +169,18 @@ ${affordances
     (aff: Affordance) =>
       `- ${
         aff.name || aff.text || "Unnamed element"
-      } (${aff.tag.toLowerCase()})`
+      } (${aff.tag.toLowerCase()}) - ${
+        aff.selector || aff.cssPath || "unknown"
+      }`
   )
   .join("\n")}
 
 **For page interactions, follow this sequence:**
 1. Use intent tool to understand what they want to do
-2. Use selector tool to find the right element
+2. Use selector tool to find the right element (pass the affordancesContext parameter with the full affordances list)
 3. Use actor tool to perform the action
 
-Always pass the full affordances list to the selector tool.
+Always pass the affordancesContext parameter to the selector tool with the full affordances list from above.
 `
     : ""
 }`,
