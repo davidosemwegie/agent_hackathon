@@ -1,5 +1,35 @@
-import { streamText, UIMessage, convertToModelMessages, tool } from "ai";
+import {
+  streamText,
+  UIMessage,
+  convertToModelMessages,
+  tool,
+  stepCountIs,
+} from "ai";
 import z from "zod";
+import { actorTool } from "./actor-tool";
+import { selectorTool } from "./selector-tool";
+import { intentTool } from "./intent-tool";
+
+// Type for affordances
+interface Affordance {
+  id: string;
+  role?: string;
+  tag: string;
+  name?: string;
+  text?: string;
+  href?: string;
+  attrs: Record<string, string>;
+  bbox: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+  visible: boolean;
+  enabled: boolean;
+  cssPath: string;
+  selector: string;
+}
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -56,16 +86,70 @@ async function getWeatherData(location: string) {
 export async function POST(req: Request) {
   const body = await req.json();
 
-  console.log(body);
-  const { messages }: { messages: UIMessage[] } = body;
+  console.log("Request body:", body);
+  const {
+    messages,
+    affordances,
+  }: { messages: UIMessage[]; affordances?: Affordance[] } = body;
 
   for (const message of messages) {
-    console.log(message.parts);
+    console.log("Message parts:", message.parts);
   }
 
+  // Create system message with affordances context
+  const systemMessage = {
+    role: "system" as const,
+    content: `You are an AI assistant that helps users interact with web pages. You have access to tools that can:
+
+1. **Understand user intent** - Parse what action they want to perform
+2. **Find elements** - Match user intent to available page elements using affordances
+3. **Execute actions** - Perform DOM actions like clicking, typing, scrolling
+
+**REASONING STYLE:**
+Always think through your approach step by step. Show your reasoning process clearly, including:
+- What the user is trying to accomplish
+- Which elements you're considering
+- Why you're choosing specific actions
+- Any potential issues or alternatives
+
+${
+  affordances && affordances.length > 0
+    ? `
+**Available page elements (affordances):**
+${affordances
+  .map(
+    (aff: Affordance) =>
+      `- ${
+        aff.name || aff.text || "Unnamed element"
+      } (${aff.tag.toLowerCase()}) - ${aff.selector}`
+  )
+  .join("\n")}
+
+**IMPORTANT WORKFLOW:**
+When a user wants to interact with the page, you MUST follow this exact sequence:
+1. **ALWAYS start with the intent tool** to understand what they want to do
+2. **THEN use the selector tool** with the affordancesContext parameter set to the affordances list above to find the right element
+3. **FINALLY use the actor tool** to execute the action
+
+You must use ALL THREE tools in sequence for every user interaction request. Do not stop after just one tool call.
+
+When calling the selector tool, always pass the affordancesContext parameter with the full affordances list from above.
+
+Always be helpful and explain what you're doing step by step. Show your thinking process as you work through each step.
+`
+    : ""
+}`,
+  };
+
+  // Add system message to the beginning of the conversation
+  const messagesWithSystem = [
+    systemMessage,
+    ...convertToModelMessages(messages),
+  ];
+
   const result = streamText({
-    model: "openai/gpt-4o",
-    messages: convertToModelMessages(messages),
+    model: "openai/gpt-5",
+    messages: messagesWithSystem,
     tools: {
       weather: tool({
         description:
@@ -84,9 +168,22 @@ export async function POST(req: Request) {
           return weatherData;
         },
       }),
+      actor: actorTool,
+      selector: selectorTool,
+      intent: intentTool,
     },
+    // Enable multi-step tool usage with proper stopping conditions
+    stopWhen: stepCountIs(100), // Allow up to 10 steps for the agent workflow
+    // Enhanced streaming configuration
     experimental_telemetry: {
       isEnabled: true,
+    },
+    // Add step callbacks for better streaming experience
+    onStepFinish: (step) => {
+      console.log(`Step finished:`, {
+        toolCalls: step.toolCalls?.length || 0,
+        text: step.text?.slice(0, 100) + "...",
+      });
     },
   });
 

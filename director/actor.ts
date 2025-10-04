@@ -73,21 +73,21 @@ export class Actor {
         }
 
         // Simulate typing character by character
+        let currentValue = "";
         for (let i = 0; i < text.length; i++) {
           const char = text[i];
           if (!char) continue;
 
-          const currentValue = element.value;
-          const newValue = currentValue + char;
+          currentValue += char;
 
           // Use native setter to bypass React
           if (element instanceof HTMLInputElement && nativeInputValueSetter) {
-            nativeInputValueSetter.call(element, newValue);
+            nativeInputValueSetter.call(element, currentValue);
           } else if (
             element instanceof HTMLTextAreaElement &&
             nativeTextAreaValueSetter
           ) {
-            nativeTextAreaValueSetter.call(element, newValue);
+            nativeTextAreaValueSetter.call(element, currentValue);
           }
 
           // Dispatch input event

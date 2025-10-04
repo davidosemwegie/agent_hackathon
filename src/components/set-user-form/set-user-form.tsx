@@ -37,7 +37,7 @@ export function SetUserForm() {
           name="firstName"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Username</FormLabel>
+              <FormLabel>First Name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="First Name"
