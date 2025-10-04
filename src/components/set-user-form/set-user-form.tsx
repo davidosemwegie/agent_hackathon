@@ -16,8 +16,9 @@ import {
 import { Input } from "../ui/input";
 
 const formSchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email("Please enter a valid email address"),
 });
 
 export function SetUserForm() {
@@ -25,8 +26,32 @@ export function SetUserForm() {
     resolver: zodResolver(formSchema),
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    alert("Form submitted with values: " + JSON.stringify(values));
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    try {
+      const response = await fetch("/api/user/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(values),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update user");
+      }
+
+      // Success - show success message
+      alert("User updated successfully!");
+      console.log("User updated:", data);
+    } catch (error) {
+      // Error handling - show error message
+      const errorMessage =
+        error instanceof Error ? error.message : "An unexpected error occurred";
+      alert(`Error: ${errorMessage}`);
+      console.error("Error updating user:", error);
+    }
   };
 
   return (
@@ -67,6 +92,26 @@ export function SetUserForm() {
                   data-intent="settings.update-name.fields.lastName"
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  placeholder="Email Address"
+                  {...field}
+                  onChange={(e) => field.onChange(e.target.value)}
+                  data-intent="settings.update-name.fields.email"
+                />
+              </FormControl>
+              <FormDescription>This is your email address.</FormDescription>
               <FormMessage />
             </FormItem>
           )}

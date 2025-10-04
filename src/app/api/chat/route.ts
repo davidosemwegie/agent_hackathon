@@ -33,7 +33,7 @@ interface Affordance {
 }
 
 // Allow streaming responses up to 30 seconds
-export const maxDuration = 30 * 60; // 30 minutes in seconds
+export const maxDuration = 300; // 300 seconds in seconds
 
 // Real weather API function
 async function getWeatherData(location: string) {
