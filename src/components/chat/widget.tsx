@@ -22,7 +22,7 @@ const Widget = () => {
   const { messages, sendMessage, status } = useChat();
 
   const handleSubmit = (
-    message: { text?: string; files?: any[] },
+    message: { text?: string; files?: unknown[] },
     e: React.FormEvent
   ) => {
     e.preventDefault();
