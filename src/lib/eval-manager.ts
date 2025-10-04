@@ -1,5 +1,5 @@
-import { nanoid } from 'nanoid';
-import { getClickHouseClient } from './clickhouse';
+import { nanoid } from "nanoid";
+import { getClickHouseClient } from "./clickhouse";
 
 export interface ConversationOutcome {
   id: string;
@@ -37,13 +37,11 @@ export class EvalManager {
   private client = getClickHouseClient();
 
   // Record user feedback for a conversation
-  async recordOutcome(
-    data: Omit<ConversationOutcome, 'id'>
-  ): Promise<string> {
+  async recordOutcome(data: Omit<ConversationOutcome, "id">): Promise<string> {
     const id = nanoid();
 
     await this.client.insert({
-      table: 'conversation_outcomes',
+      table: "conversation_outcomes",
       values: [
         {
           id,
@@ -51,17 +49,20 @@ export class EvalManager {
           user_id: data.userId,
           rating: data.rating,
           resolved: data.resolved,
-          feedback_text: data.feedbackText || '',
-          task_category: data.taskCategory || '',
+          feedback_text: data.feedbackText || "",
+          task_category: data.taskCategory || "",
           metadata: JSON.stringify(data.metadata || {}),
         },
       ],
-      format: 'JSONEachRow',
+      format: "JSONEachRow",
     });
 
     // If positive feedback, potentially create an eval example
     if (data.rating >= 4 && data.resolved) {
-      await this.createEvalExample(data.conversationId, data.taskCategory || 'general');
+      await this.createEvalExample(
+        data.conversationId,
+        data.taskCategory || "general"
+      );
     }
 
     return id;
@@ -81,7 +82,7 @@ export class EvalManager {
         ORDER BY created_at ASC
       `,
       query_params: { conversationId },
-      format: 'JSONEachRow',
+      format: "JSONEachRow",
     });
 
     const messages = await messagesResult.json();
@@ -95,19 +96,21 @@ export class EvalManager {
         ORDER BY created_at ASC
       `,
       query_params: { conversationId },
-      format: 'JSONEachRow',
+      format: "JSONEachRow",
     });
 
     const toolUses = await toolUsesResult.json();
 
     // Extract user query (first user message)
     const userQuery =
-      messages.find((m: any) => m.role === 'user')?.content || '';
+      (messages as any[])
+        .find((m: any) => m.role === "user")
+        ?.parts?.find((part: any) => part.type === "text")?.text || "";
 
     // Summarize agent steps
     const agentSteps = JSON.stringify({
       messages: messages
-        .filter((m: any) => m.role === 'assistant')
+        .filter((m: any) => m.role === "assistant")
         .map((m: any) => ({ content: m.content.substring(0, 200) })),
       tools: toolUses.map((t: any) => ({
         name: t.tool_name,
@@ -127,15 +130,15 @@ export class EvalManager {
         LIMIT 1
       `,
       query_params: { conversationId },
-      format: 'JSONEachRow',
+      format: "JSONEachRow",
     });
 
     const outcomes = await outcomeResult.json();
-    const rating = outcomes[0]?.rating || 5;
+    const rating = (outcomes as any[])[0]?.rating || 5;
 
     // Insert eval example
     await this.client.insert({
-      table: 'eval_examples',
+      table: "eval_examples",
       values: [
         {
           id: nanoid(),
@@ -149,13 +152,13 @@ export class EvalManager {
           last_used: new Date().toISOString(),
         },
       ],
-      format: 'JSONEachRow',
+      format: "JSONEachRow",
     });
   }
 
   // Get successful examples for a task category
   async getSuccessfulExamples(
-    taskCategory: string = 'general',
+    taskCategory: string = "general",
     limit: number = 3
   ): Promise<EvalExample[]> {
     const result = await this.client.query({
@@ -179,13 +182,13 @@ export class EvalManager {
         taskCategory,
         limit,
       },
-      format: 'JSONEachRow',
+      format: "JSONEachRow",
     });
 
     const examples = await result.json();
 
     // Update usage count
-    for (const example of examples) {
+    for (const example of examples as any[]) {
       await this.client.exec({
         query: `
           ALTER TABLE eval_examples
@@ -195,14 +198,11 @@ export class EvalManager {
       });
     }
 
-    return examples;
+    return examples as any[];
   }
 
   // Get metrics for a date range
-  async getMetrics(
-    startDate: string,
-    endDate: string
-  ): Promise<EvalMetrics[]> {
+  async getMetrics(startDate: string, endDate: string): Promise<EvalMetrics[]> {
     const result = await this.client.query({
       query: `
         SELECT
@@ -222,7 +222,7 @@ export class EvalManager {
         startDate,
         endDate,
       },
-      format: 'JSONEachRow',
+      format: "JSONEachRow",
     });
 
     return result.json();
@@ -246,7 +246,7 @@ export class EvalManager {
         ORDER BY usage_count DESC
       `,
       query_params: { days },
-      format: 'JSONEachRow',
+      format: "JSONEachRow",
     });
 
     return result.json();
@@ -271,7 +271,7 @@ export class EvalManager {
         LIMIT {limit:UInt32}
       `,
       query_params: { limit },
-      format: 'JSONEachRow',
+      format: "JSONEachRow",
     });
 
     return result.json();
@@ -291,7 +291,7 @@ export class EvalManager {
         ORDER BY date ASC
       `,
       query_params: { days },
-      format: 'JSONEachRow',
+      format: "JSONEachRow",
     });
 
     return result.json();
@@ -299,26 +299,26 @@ export class EvalManager {
 
   // Generate formatted examples for context injection
   async getFormattedExamplesForContext(
-    taskCategory: string = 'general',
+    taskCategory: string = "general",
     limit: number = 3
   ): Promise<string> {
     const examples = await this.getSuccessfulExamples(taskCategory, limit);
 
     if (examples.length === 0) {
-      return '';
+      return "";
     }
 
     const formattedExamples = examples
       .map((example, index) => {
-        const steps = JSON.parse(example.agent_steps);
+        const steps = JSON.parse(example.agentSteps);
         return `
-**Example ${index + 1}: Successful ${example.task_category} resolution**
-User Query: ${example.user_query}
-Agent Approach: ${steps.tools.map((t: any) => t.name).join(' → ')}
-Outcome: ${example.outcome_summary} (Rating: ${example.rating}/5)
+**Example ${index + 1}: Successful ${example.taskCategory} resolution**
+User Query: ${example.userQuery}
+Agent Approach: ${steps.tools.map((t: any) => t.name).join(" → ")}
+Outcome: ${example.outcomeSummary} (Rating: ${example.rating}/5)
 `;
       })
-      .join('\n');
+      .join("\n");
 
     return `
 ## Examples of Successful Resolutions

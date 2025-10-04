@@ -3,10 +3,10 @@ import { conversationLogger } from '@/lib/conversation-logger';
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const conversationId = params.id;
+    const { id: conversationId } = await params;
 
     const [messages, toolUses] = await Promise.all([
       conversationLogger.getConversationMessages(conversationId),
@@ -29,10 +29,10 @@ export async function GET(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const conversationId = params.id;
+    const { id: conversationId } = await params;
     await conversationLogger.deleteConversation(conversationId);
     return NextResponse.json({ success: true });
   } catch (error) {

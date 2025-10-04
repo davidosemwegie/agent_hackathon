@@ -109,7 +109,10 @@ export async function POST(req: Request) {
     existingConversationId ||
     (await conversationLogger.createConversation({
       userId,
-      title: messages[0]?.content?.substring(0, 100) || "New Conversation",
+      title:
+        messages[0]?.parts
+          ?.find((part) => part.type === "text")
+          ?.text?.substring(0, 100) || "New Conversation",
     }));
 
   for (const message of messages) {
@@ -123,9 +126,10 @@ export async function POST(req: Request) {
         conversationId,
         role: "user",
         content:
-          typeof message.content === "string"
-            ? message.content
-            : JSON.stringify(message.content),
+          message.parts
+            ?.filter((part) => part.type === "text")
+            ?.map((part) => part.text)
+            ?.join(" ") || "",
       });
     }
   }
@@ -244,11 +248,11 @@ Always pass the full affordances list to the selector tool.
               conversationId,
               messageId: nanoid(),
               toolName: toolCall.toolName,
-              input: JSON.stringify(toolCall.args),
+              input: JSON.stringify((toolCall as any).args || toolCall),
               output: JSON.stringify(
                 step.toolResults?.find(
                   (r) => r.toolCallId === toolCall.toolCallId
-                )?.result || {}
+                ) || {}
               ),
               durationMs: Date.now() - startTime,
               status: "success",
@@ -258,7 +262,7 @@ Always pass the full affordances list to the selector tool.
               conversationId,
               messageId: nanoid(),
               toolName: toolCall.toolName,
-              input: JSON.stringify(toolCall.args),
+              input: JSON.stringify((toolCall as any).args || toolCall),
               output: JSON.stringify({ error: String(error) }),
               durationMs: Date.now() - startTime,
               status: "error",
