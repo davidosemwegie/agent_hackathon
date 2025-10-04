@@ -48,12 +48,7 @@ export const datadogTool = tool({
       if (!errorIndicators.hasError) {
         return {
           success: true,
-          message:
-            "I don't see any obvious error indicators in your message. Let me help you troubleshoot step by step.",
-          hasError: false,
-          userMessage,
-          userFriendlyMessage:
-            "No system issues detected - this appears to be a user-specific problem that we can solve together.",
+          foundErrors: false,
         };
       }
 
@@ -79,33 +74,25 @@ export const datadogTool = tool({
         mcpClient,
       });
 
-      // Generate user-friendly message based on findings
-      const userFriendlyMessage = generateUserFriendlyMessage(
-        searchResults,
-        finalSearchType,
-        errorIndicators
-      );
+      // Return minimal, actionable findings
+      if (searchResults.results.length === 0) {
+        return {
+          success: true,
+          foundErrors: false,
+        };
+      }
 
       return {
         success: true,
-        message: userFriendlyMessage,
-        hasError: true,
-        searchType: finalSearchType,
-        timeRange,
-        context: extractedContext,
-        errorIndicators,
-        results: searchResults.results,
-        summary: searchResults.summary,
-        recommendations: searchResults.recommendations,
-        userFriendlyMessage,
+        foundErrors: true,
+        relevantError: searchResults.conciseError,
       };
     } catch (error) {
       return {
         success: false,
         error:
           error instanceof Error ? error.message : "Unknown error occurred",
-        userMessage,
-        hasError: false,
+        foundErrors: false,
       };
     }
   },
@@ -386,15 +373,12 @@ async function performDatadogSearch(params: {
   mcpClient: DatadogMCPClient;
 }): Promise<{
   results: unknown[];
-  summary: string;
-  recommendations: string[];
+  conciseError?: string;
 }> {
   const { searchType, timeRange, context, errorIndicators, mcpClient } = params;
 
-  // Simulate search results based on search type
   let results: unknown[] = [];
-  let summary = "";
-  let recommendations: string[] = [];
+  let conciseError: string | undefined;
 
   switch (searchType) {
     case "logs":
@@ -402,37 +386,30 @@ async function performDatadogSearch(params: {
         buildSearchQuery(context, errorIndicators),
         timeRange
       );
-      summary = `Found ${results.length} error patterns in the last ${timeRange}`;
 
-      // Check if validation errors are present
-      const hasValidationErrors = results.some((result: unknown) => {
-        const r = result as Record<string, unknown>;
-        const errorType = r.error_type as string;
-        const message = r.message as string;
+      if (results.length > 0) {
+        // Extract the most relevant error
+        const validationError = results.find((result: unknown) => {
+          const r = result as Record<string, unknown>;
+          const errorType = r.error_type as string;
+          const message = r.message as string;
 
-        return (
-          errorType?.toLowerCase().includes("validation") ||
-          errorType?.toLowerCase().includes("bad request") ||
-          message?.toLowerCase().includes("required field") ||
-          message?.toLowerCase().includes("missing field") ||
-          message?.toLowerCase().includes("invalid format")
-        );
-      });
+          return (
+            errorType?.toLowerCase().includes("validation") ||
+            errorType?.toLowerCase().includes("bad request") ||
+            message?.toLowerCase().includes("required field") ||
+            message?.toLowerCase().includes("missing field") ||
+            message?.toLowerCase().includes("invalid format")
+          );
+        });
 
-      if (hasValidationErrors) {
-        recommendations = [
-          "Your form might be missing required information or have formatting issues",
-          "Double-check that all required fields are filled out correctly",
-          "Make sure email addresses and phone numbers are in the right format",
-          "This is likely a form-specific issue rather than a system-wide problem",
-        ];
-      } else {
-        recommendations = [
-          "There are some database connection issues that might be affecting your form",
-          "The system is experiencing some performance problems",
-          "This appears to be affecting multiple users, not just you",
-          "The timing of these issues might match when you started having problems",
-        ];
+        if (validationError) {
+          const r = validationError as Record<string, unknown>;
+          conciseError = `Validation error detected: ${r.message || "form field issue"}`;
+        } else {
+          const r = results[0] as Record<string, unknown>;
+          conciseError = `System error: ${r.message || "backend issue detected"}`;
+        }
       }
       break;
 
@@ -441,13 +418,9 @@ async function performDatadogSearch(params: {
         buildSearchQuery(context, errorIndicators),
         timeRange
       );
-      summary = `Found ${results.length} performance anomalies in the last ${timeRange}`;
-      recommendations = [
-        "The system is running slower than usual, which could explain why your form is taking time to respond",
-        "There are some performance issues affecting the system right now",
-        "This appears to be affecting multiple users, not just you",
-        "The problem is likely on our end rather than something wrong with your form",
-      ];
+      if (results.length > 0) {
+        conciseError = "Performance degradation detected in the system";
+      }
       break;
 
     case "traces":
@@ -455,13 +428,9 @@ async function performDatadogSearch(params: {
         buildSearchQuery(context, errorIndicators),
         timeRange
       );
-      summary = `Found ${results.length} problematic request patterns in the last ${timeRange}`;
-      recommendations = [
-        "The system is having trouble processing requests, which could be why your form isn't submitting",
-        "There are some issues with how the system is handling form submissions",
-        "The timing of these problems might match when you started having issues",
-        "This suggests the problem is on our end rather than with your specific form",
-      ];
+      if (results.length > 0) {
+        conciseError = "Request processing issues detected";
+      }
       break;
 
     case "incidents":
@@ -469,17 +438,14 @@ async function performDatadogSearch(params: {
         buildSearchQuery(context, errorIndicators),
         timeRange
       );
-      summary = `Found ${results.length} active incidents that may be related to your issue`;
-      recommendations = [
-        "There's an active system issue that matches the problem you're experiencing",
-        "Our engineering team is already aware and working on fixing this",
-        "Your problem is part of a broader system issue, not something wrong with your account",
-        "We're working on it - you should see improvement as we resolve the issue",
-      ];
+      if (results.length > 0) {
+        const r = results[0] as Record<string, unknown>;
+        conciseError = `Active incident: ${r.title || "system issue"}`;
+      }
       break;
   }
 
-  return { results, summary, recommendations };
+  return { results, conciseError };
 }
 
 // Helper function to build search query from context and error indicators
@@ -531,70 +497,3 @@ function buildSearchQuery(
   return queryParts.join(" AND ");
 }
 
-// Helper function to generate user-friendly messages
-function generateUserFriendlyMessage(
-  searchResults: {
-    results: unknown[];
-    summary: string;
-    recommendations: string[];
-  },
-  searchType: string,
-  errorIndicators: ReturnType<typeof detectErrorIndicators>
-): string {
-  const { results, recommendations } = searchResults;
-
-  if (results.length === 0) {
-    return "Good news! I don't see any recent system issues that would cause your problem. This suggests it's likely something we can fix on your end.";
-  }
-
-  // Generate contextual messages based on search type and findings
-  let baseMessage = "";
-
-  switch (searchType) {
-    case "logs":
-      if (recommendations.some((rec) => rec.includes("validation"))) {
-        baseMessage =
-          "I found some validation errors in the system logs. This suggests your form might be missing required information or have formatting issues.";
-      } else if (recommendations.some((rec) => rec.includes("database"))) {
-        baseMessage =
-          "I detected some database connection issues in the system. This could be causing your form submission problems.";
-      } else {
-        baseMessage =
-          "I found some error patterns in the system logs that might be related to your issue.";
-      }
-      break;
-
-    case "metrics":
-      baseMessage =
-        "I noticed some performance issues in the system that could be affecting form submissions. The system appears to be running slower than usual.";
-      break;
-
-    case "traces":
-      baseMessage =
-        "I found some problematic request patterns that might explain why your form isn't working properly.";
-      break;
-
-    case "incidents":
-      baseMessage =
-        "There's an active system incident that's likely causing your problem. The engineering team is already working on it.";
-      break;
-
-    default:
-      baseMessage =
-        "I found some system issues that might be related to your problem.";
-  }
-
-  // Add severity context
-  if (errorIndicators.severity === "high") {
-    baseMessage +=
-      " This appears to be a significant issue affecting multiple users.";
-  } else if (errorIndicators.severity === "medium") {
-    baseMessage +=
-      " This seems to be a moderate issue that's affecting some users.";
-  } else {
-    baseMessage +=
-      " This appears to be a minor issue that we should be able to resolve.";
-  }
-
-  return baseMessage;
-}
