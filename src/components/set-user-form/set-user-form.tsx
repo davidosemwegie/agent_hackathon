@@ -15,10 +15,34 @@ import {
 } from "../ui/form";
 import { Input } from "../ui/input";
 
+// Popular email providers to block
+const POPULAR_EMAIL_PROVIDERS = [
+  "gmail.com",
+  "yahoo.com",
+  "hotmail.com",
+  "outlook.com",
+  "live.com",
+  "msn.com",
+  "aol.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "protonmail.com",
+  "tutanota.com",
+  "yandex.com",
+  "mail.ru",
+  "zoho.com",
+  "fastmail.com",
+  "hey.com",
+  "duck.com",
+  "pm.me",
+  "proton.me",
+];
+
 const formSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  email: z.string(),
+  email: z.string().min(1, "Email is required"),
 });
 
 export function SetUserForm() {
@@ -46,11 +70,9 @@ export function SetUserForm() {
       alert("User updated successfully!");
       console.log("User updated:", data);
     } catch (error) {
-      // Error handling - show error message
-      const errorMessage =
-        error instanceof Error ? error.message : "An unexpected error occurred";
-      alert(`Error: ${errorMessage}`);
+      // Error handling - show generic message to user, log detailed error to console
       console.error("Error updating user:", error);
+      alert("Failed to submit form. Please try again.");
     }
   };
 
@@ -111,7 +133,10 @@ export function SetUserForm() {
                   data-intent="settings.update-name.fields.email"
                 />
               </FormControl>
-              <FormDescription>This is your email address.</FormDescription>
+              <FormDescription>
+                Please use your work email address. Personal email providers
+                (Gmail, Yahoo, etc.) are not allowed.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
