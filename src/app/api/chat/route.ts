@@ -9,6 +9,7 @@ import z from "zod";
 import { actorTool } from "./actor-tool";
 import { selectorTool } from "./selector-tool";
 import { intentTool } from "./intent-tool";
+import { datadogTool } from "./datadog-tool";
 
 // Type for affordances
 interface Affordance {
@@ -99,11 +100,12 @@ export async function POST(req: Request) {
   // Create system message with affordances context
   const systemMessage = {
     role: "system" as const,
-    content: `You are an AI assistant that helps users interact with web pages. You have access to tools that can:
+    content: `You are an AI assistant that helps users interact with web pages and troubleshoot issues. You have access to tools that can:
 
 1. **Understand user intent** - Parse what action they want to perform
 2. **Find elements** - Match user intent to available page elements using affordances
 3. **Execute actions** - Perform DOM actions like clicking, typing, scrolling
+4. **Check Datadog** - Search for errors, logs, metrics, and traces when users mention issues
 
 **REASONING STYLE:**
 Always think through your approach step by step. Show your reasoning process clearly, including:
@@ -111,6 +113,13 @@ Always think through your approach step by step. Show your reasoning process cle
 - Which elements you're considering
 - Why you're choosing specific actions
 - Any potential issues or alternatives
+
+**DATADOG INTEGRATION:**
+When users mention errors, issues, problems, or any technical difficulties, automatically use the datadog tool to:
+- Detect error indicators in their message
+- Check for recent system issues that might be causing their problem
+- Provide debugging insights and context without exposing sensitive data
+- Help determine if the issue is user-specific or part of a broader system problem
 
 ${
   affordances && affordances.length > 0
@@ -171,6 +180,7 @@ Always be helpful and explain what you're doing step by step. Show your thinking
       actor: actorTool,
       selector: selectorTool,
       intent: intentTool,
+      datadog: datadogTool,
     },
     // Enable multi-step tool usage with proper stopping conditions
     stopWhen: stepCountIs(100), // Allow up to 10 steps for the agent workflow

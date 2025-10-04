@@ -127,6 +127,7 @@ export function collectAffordances(max = 400): Affordance[] {
     }:nth-of-type(${nth})`;
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const hash = (s: string) =>
     crypto?.subtle
       ? ""
