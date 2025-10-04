@@ -100,51 +100,42 @@ export async function POST(req: Request) {
   // Create system message with affordances context
   const systemMessage = {
     role: "system" as const,
-    content: `You are an AI assistant that helps users interact with web pages and troubleshoot issues. You have access to tools that can:
+    content: `You are a helpful AI assistant that helps users interact with web pages and troubleshoot issues.
 
-1. **Understand user intent** - Parse what action they want to perform
-2. **Find elements** - Match user intent to available page elements using affordances
-3. **Execute actions** - Perform DOM actions like clicking, typing, scrolling
-4. **Check Datadog** - Search for errors, logs, metrics, and traces when users mention issues
+**Your goal:** Provide clear, actionable help in a friendly, conversational tone. Avoid technical jargon and make responses easy to understand.
 
-**REASONING STYLE:**
-Always think through your approach step by step. Show your reasoning process clearly, including:
-- What the user is trying to accomplish
-- Which elements you're considering
-- Why you're choosing specific actions
-- Any potential issues or alternatives
+**When users have problems:**
+- First check if there are any system-wide issues using the datadog tool
+- Then provide practical, step-by-step solutions
+- Use simple language and avoid overwhelming technical details
 
-**DATADOG INTEGRATION:**
-When users mention errors, issues, problems, or any technical difficulties, automatically use the datadog tool to:
-- Detect error indicators in their message
-- Check for recent system issues that might be causing their problem
-- Provide debugging insights and context without exposing sensitive data
-- Help determine if the issue is user-specific or part of a broader system problem
+**Response style:**
+- Be conversational and empathetic
+- Break down complex issues into simple steps
+- Focus on what the user can do to solve their problem
+- If you find system issues, explain them in plain English
+- Use the getResponseTemplate tool for common scenarios to ensure consistent, friendly messaging
+- Use the formatResponse tool to structure your final response with clear sections
 
 ${
   affordances && affordances.length > 0
     ? `
-**Available page elements (affordances):**
+**Available page elements:**
 ${affordances
   .map(
     (aff: Affordance) =>
       `- ${
         aff.name || aff.text || "Unnamed element"
-      } (${aff.tag.toLowerCase()}) - ${aff.selector}`
+      } (${aff.tag.toLowerCase()})`
   )
   .join("\n")}
 
-**IMPORTANT WORKFLOW:**
-When a user wants to interact with the page, you MUST follow this exact sequence:
-1. **ALWAYS start with the intent tool** to understand what they want to do
-2. **THEN use the selector tool** with the affordancesContext parameter set to the affordances list above to find the right element
-3. **FINALLY use the actor tool** to execute the action
+**For page interactions, follow this sequence:**
+1. Use intent tool to understand what they want to do
+2. Use selector tool to find the right element
+3. Use actor tool to perform the action
 
-You must use ALL THREE tools in sequence for every user interaction request. Do not stop after just one tool call.
-
-When calling the selector tool, always pass the affordancesContext parameter with the full affordances list from above.
-
-Always be helpful and explain what you're doing step by step. Show your thinking process as you work through each step.
+Always pass the full affordances list to the selector tool.
 `
     : ""
 }`,
@@ -181,6 +172,142 @@ Always be helpful and explain what you're doing step by step. Show your thinking
       selector: selectorTool,
       intent: intentTool,
       datadog: datadogTool,
+      formatResponse: tool({
+        description:
+          "Format a response in a user-friendly way with clear sections and actionable steps",
+        inputSchema: z.object({
+          title: z
+            .string()
+            .describe("A clear, friendly title for the response"),
+          summary: z
+            .string()
+            .describe("A brief summary of what was found or what the issue is"),
+          steps: z
+            .array(z.string())
+            .optional()
+            .describe("Step-by-step actions the user can take"),
+          systemStatus: z
+            .string()
+            .optional()
+            .describe("Information about system status if relevant"),
+          nextSteps: z
+            .string()
+            .optional()
+            .describe("What the user should do next"),
+        }),
+        execute: async ({ title, summary, steps, systemStatus, nextSteps }) => {
+          return {
+            formatted: true,
+            title,
+            summary,
+            steps: steps || [],
+            systemStatus,
+            nextSteps,
+          };
+        },
+      }),
+      getResponseTemplate: tool({
+        description:
+          "Get a pre-formatted response template for common user scenarios",
+        inputSchema: z.object({
+          scenario: z
+            .enum([
+              "form_not_submitting",
+              "system_issue_detected",
+              "no_system_issues",
+              "validation_errors",
+              "performance_issues",
+              "general_help",
+            ])
+            .describe("The type of scenario to get a template for"),
+          userMessage: z
+            .string()
+            .describe("The user's original message for context"),
+          systemFindings: z
+            .string()
+            .optional()
+            .describe("Any system findings from datadog tool"),
+        }),
+        execute: async ({ scenario, userMessage, systemFindings }) => {
+          const templates = {
+            form_not_submitting: {
+              title: "Let's get your form working!",
+              summary:
+                "I'll help you figure out why your form isn't submitting. Let me check for any system issues first, then we'll go through some common solutions.",
+              steps: [
+                "Check that all required fields are filled out",
+                "Make sure your email address is in the correct format",
+                "Try refreshing the page and filling out the form again",
+                "Check if there are any error messages displayed on the form",
+              ],
+              nextSteps:
+                "If these steps don't work, I can help you test the form directly or investigate further.",
+            },
+            system_issue_detected: {
+              title: "I found the issue!",
+              summary:
+                systemFindings ||
+                "There appears to be a system issue that's affecting form submissions.",
+              systemStatus:
+                "Our engineering team is aware of this issue and working on a fix.",
+              nextSteps:
+                "You can try again in a few minutes, or I can help you with an alternative approach.",
+            },
+            no_system_issues: {
+              title: "Good news - no system issues!",
+              summary:
+                "I don't see any system-wide problems that would prevent your form from working.",
+              steps: [
+                "Double-check that all required fields are completed",
+                "Make sure your information is in the correct format",
+                "Try clearing your browser cache and refreshing the page",
+                "Test with a different browser or device if possible",
+              ],
+              nextSteps:
+                "If you're still having trouble, I can help you test the form step by step.",
+            },
+            validation_errors: {
+              title: "I found some validation issues",
+              summary:
+                "The system is detecting some problems with the information you're trying to submit.",
+              steps: [
+                "Check that all required fields are filled out completely",
+                "Make sure your email address follows the format: name@example.com",
+                "Verify phone numbers are in the correct format",
+                "Ensure any dates are in the expected format",
+              ],
+              nextSteps:
+                "Once you've corrected any formatting issues, try submitting again.",
+            },
+            performance_issues: {
+              title: "The system is running a bit slow",
+              summary:
+                "I detected some performance issues that might be affecting form submissions.",
+              systemStatus:
+                "The system is experiencing slower response times than usual.",
+              steps: [
+                "Try waiting a moment and then submitting your form again",
+                "If the form seems stuck, refresh the page and try again",
+                "Consider trying during off-peak hours if possible",
+              ],
+              nextSteps:
+                "Our team is working to improve performance. You should see better response times soon.",
+            },
+            general_help: {
+              title: "I'm here to help!",
+              summary: "Let me assist you with whatever you need.",
+              steps: [
+                "Tell me what you're trying to accomplish",
+                "I'll check for any system issues that might be affecting you",
+                "Then I'll provide step-by-step guidance",
+              ],
+              nextSteps: "What would you like help with today?",
+            },
+          };
+
+          return templates[scenario] || templates.general_help;
+        },
+      }),
     },
     // Enable multi-step tool usage with proper stopping conditions
     stopWhen: stepCountIs(100), // Allow up to 10 steps for the agent workflow
