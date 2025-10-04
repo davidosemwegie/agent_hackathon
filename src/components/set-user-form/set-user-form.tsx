@@ -40,7 +40,7 @@ export function SetUserForm() {
               <FormLabel>Username</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="shadcn"
+                  placeholder="First Name"
                   {...field}
                   onChange={(e) => field.onChange(e.target.value)}
                   data-intent="settings.update-name.fields.firstName"
@@ -61,7 +61,7 @@ export function SetUserForm() {
               <FormLabel>Last Name</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="Doe"
+                  placeholder="Last Name"
                   {...field}
                   onChange={(e) => field.onChange(e.target.value)}
                   data-intent="settings.update-name.fields.lastName"
