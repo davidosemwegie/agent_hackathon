@@ -10,7 +10,9 @@ import { actorTool } from "./actor-tool";
 import { selectorTool } from "./selector-tool";
 import { intentTool } from "./intent-tool";
 import { datadogTool } from "./datadog-tool";
+import { feedbackTool } from "./feedback-tool";
 import { conversationLogger } from "@/lib/conversation-logger";
+import { evalManager } from "@/lib/eval-manager";
 import { nanoid } from "nanoid";
 
 // Type for affordances
@@ -94,7 +96,7 @@ export async function POST(req: Request) {
     messages,
     affordances,
     conversationId: existingConversationId,
-    userId = 'default-user',
+    userId = "default-user",
   }: {
     messages: UIMessage[];
     affordances?: Affordance[];
@@ -103,10 +105,12 @@ export async function POST(req: Request) {
   } = body;
 
   // Create or use existing conversation
-  const conversationId = existingConversationId || await conversationLogger.createConversation({
-    userId,
-    title: messages[0]?.content?.substring(0, 100) || 'New Conversation',
-  });
+  const conversationId =
+    existingConversationId ||
+    (await conversationLogger.createConversation({
+      userId,
+      title: messages[0]?.content?.substring(0, 100) || "New Conversation",
+    }));
 
   for (const message of messages) {
     console.log("Message parts:", message.parts);
@@ -114,14 +118,23 @@ export async function POST(req: Request) {
 
   // Log user messages
   for (const message of messages) {
-    if (message.role === 'user') {
+    if (message.role === "user") {
       await conversationLogger.logMessage({
         conversationId,
-        role: 'user',
-        content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content),
+        role: "user",
+        content:
+          typeof message.content === "string"
+            ? message.content
+            : JSON.stringify(message.content),
       });
     }
   }
+
+  // Get successful examples for context (if available)
+  const successfulExamples = await evalManager.getFormattedExamplesForContext(
+    "general",
+    2
+  );
 
   // Create system message with affordances context
   const systemMessage = {
@@ -140,6 +153,8 @@ export async function POST(req: Request) {
 - Only mention system errors if datadog returns specific findings
 - Focus on actionable next steps
 - Avoid multi-step explanations unless necessary
+
+${successfulExamples}
 
 ${
   affordances && affordances.length > 0
@@ -196,6 +211,7 @@ Always pass the full affordances list to the selector tool.
       selector: selectorTool,
       intent: intentTool,
       datadog: datadogTool,
+      feedback: feedbackTool,
     },
     // Enable multi-step tool usage with proper stopping conditions
     stopWhen: stepCountIs(100), // Allow up to 10 steps for the agent workflow
@@ -214,7 +230,7 @@ Always pass the full affordances list to the selector tool.
       if (step.text) {
         await conversationLogger.logMessage({
           conversationId,
-          role: 'assistant',
+          role: "assistant",
           content: step.text,
         });
       }
@@ -229,9 +245,13 @@ Always pass the full affordances list to the selector tool.
               messageId: nanoid(),
               toolName: toolCall.toolName,
               input: JSON.stringify(toolCall.args),
-              output: JSON.stringify(step.toolResults?.find(r => r.toolCallId === toolCall.toolCallId)?.result || {}),
+              output: JSON.stringify(
+                step.toolResults?.find(
+                  (r) => r.toolCallId === toolCall.toolCallId
+                )?.result || {}
+              ),
               durationMs: Date.now() - startTime,
-              status: 'success',
+              status: "success",
             });
           } catch (error) {
             await conversationLogger.logToolUse({
@@ -241,7 +261,7 @@ Always pass the full affordances list to the selector tool.
               input: JSON.stringify(toolCall.args),
               output: JSON.stringify({ error: String(error) }),
               durationMs: Date.now() - startTime,
-              status: 'error',
+              status: "error",
             });
           }
         }

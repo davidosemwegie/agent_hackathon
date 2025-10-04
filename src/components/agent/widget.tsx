@@ -31,6 +31,7 @@ import {
   ToolOutput,
 } from "@/components/ai-elements/tool";
 import { collectAffordances } from "./find-affordances";
+import { FeedbackWidget } from "@/components/feedback-widget/feedback-widget";
 // Additional AI SDK components available for future use:
 // import { Image } from "@/components/ai-elements/image";
 // import { Artifact, ArtifactHeader, ArtifactTitle, ArtifactContent } from "@/components/ai-elements/artifact";
@@ -49,6 +50,7 @@ const Widget = () => {
   );
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [userId] = useState("default-user"); // TODO: Get from actual user context
+  const [showFeedback, setShowFeedback] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
@@ -259,6 +261,12 @@ const Widget = () => {
       latestMessage.parts.forEach((part, partIndex) => {
         if (part.type.startsWith("tool-") && "output" in part && part.output) {
           const output = part.output as Record<string, unknown>;
+
+          // Check if feedback tool was used
+          if (part.type === "tool-feedback" && output.showFeedbackWidget) {
+            setShowFeedback(true);
+          }
+
           if (output.executable && (output.action || output.actorMethod)) {
             // Create a unique action ID based on message ID and part index
             const actionId = `${latestMessage.id}-${partIndex}`;
@@ -396,6 +404,17 @@ const Widget = () => {
           {/* Invisible element to scroll to */}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Feedback Widget */}
+        {showFeedback && conversationId && messages.length > 0 && (
+          <div className="mt-4">
+            <FeedbackWidget
+              conversationId={conversationId}
+              userId={userId}
+              onSubmit={() => setShowFeedback(false)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Input area - fixed at bottom */}

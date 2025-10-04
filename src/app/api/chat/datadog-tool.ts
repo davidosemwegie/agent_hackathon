@@ -5,12 +5,12 @@ import { getDatadogMCPClient, DatadogMCPClient } from "./mcp-client";
 // Datadog MCP tool for error detection and debugging assistance
 export const datadogTool = tool({
   description:
-    "Check Datadog for recent errors and issues that might be causing user problems. Detects validation errors, missing fields, API issues, and other backend problems. Provides debugging insights and recommendations without exposing sensitive data. Automatically detects error indicators in user messages and searches for relevant issues in the recent time period.",
+    "Search Datadog for system data related to user-reported issues. Analyzes user messages for error indicators and searches logs, metrics, traces, and incidents. Returns raw system data and context for intelligent analysis. Use this when users report problems, errors, or issues to gather relevant system information for debugging.",
   inputSchema: z.object({
     userMessage: z
       .string()
       .describe(
-        "The user's message to analyze for error indicators and extract context"
+        "The user's message describing their issue or problem. Can be any description of what's not working, errors they're seeing, or problems they're experiencing."
       ),
     searchType: z
       .enum(["auto", "logs", "metrics", "traces", "incidents"])
@@ -74,18 +74,26 @@ export const datadogTool = tool({
         mcpClient,
       });
 
-      // Return minimal, actionable findings
+      // Return rich data for LLM analysis
       if (searchResults.results.length === 0) {
         return {
           success: true,
           foundErrors: false,
+          message: "No relevant errors found in the specified time range.",
+          context: searchResults.contextSummary,
+          searchQuery: searchResults.searchQuery,
         };
       }
 
       return {
         success: true,
         foundErrors: true,
-        relevantError: searchResults.conciseError,
+        message:
+          "Found relevant system data. Please analyze the raw data below to identify the specific error and provide a detailed explanation.",
+        rawData: searchResults.rawData,
+        context: searchResults.contextSummary,
+        searchQuery: searchResults.searchQuery,
+        resultCount: searchResults.results.length,
       };
     } catch (error) {
       return {
@@ -259,6 +267,21 @@ function extractContextFromMessage(
     errorCode?: string;
     field?: string;
     endpoint?: string;
+  },
+  requestContext?: {
+    hostname?: string;
+    service?: string;
+    environment?: string;
+    errorMessage?: string;
+    errorCode?: string;
+    field?: string;
+    endpoint?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    browser?: string;
+    os?: string;
+    device?: string;
+    customTags?: Record<string, string>;
   }
 ): {
   hostname?: string;
@@ -268,7 +291,14 @@ function extractContextFromMessage(
   errorCode?: string;
   field?: string;
   endpoint?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  browser?: string;
+  os?: string;
+  device?: string;
+  userId?: string;
   extractedFromMessage: Record<string, string>;
+  requestMetadata: Record<string, string>;
 } {
   const extracted: Record<string, string> = {};
 
@@ -320,15 +350,48 @@ function extractContextFromMessage(
     extracted.endpoint = endpointMatch[1];
   }
 
+  // Build request metadata for additional context
+  const requestMetadata: Record<string, string> = {};
+  if (requestContext?.ipAddress) requestMetadata.ip = requestContext.ipAddress;
+  if (requestContext?.browser) requestMetadata.browser = requestContext.browser;
+  if (requestContext?.os) requestMetadata.os = requestContext.os;
+  if (requestContext?.device) requestMetadata.device = requestContext.device;
+  if (requestContext?.customTags) {
+    Object.entries(requestContext.customTags).forEach(([key, value]) => {
+      requestMetadata[key] = String(value);
+    });
+  }
+
   return {
-    hostname: additionalContext?.hostname || extracted.hostname,
-    service: additionalContext?.service || extracted.service,
-    environment: additionalContext?.environment || extracted.environment,
-    errorMessage: additionalContext?.errorMessage,
-    errorCode: additionalContext?.errorCode || extracted.errorCode,
-    field: extracted.field,
-    endpoint: extracted.endpoint,
+    hostname:
+      additionalContext?.hostname ||
+      extracted.hostname ||
+      requestContext?.hostname ||
+      requestContext?.ipAddress,
+    service:
+      additionalContext?.service ||
+      extracted.service ||
+      requestContext?.service,
+    environment:
+      additionalContext?.environment ||
+      extracted.environment ||
+      requestContext?.environment,
+    errorMessage:
+      additionalContext?.errorMessage || requestContext?.errorMessage,
+    errorCode:
+      additionalContext?.errorCode ||
+      extracted.errorCode ||
+      requestContext?.errorCode,
+    field: extracted.field || requestContext?.field,
+    endpoint: extracted.endpoint || requestContext?.endpoint,
+    ipAddress: requestContext?.ipAddress,
+    userAgent: requestContext?.userAgent,
+    browser: requestContext?.browser,
+    os: requestContext?.os,
+    device: requestContext?.device,
+    userId: requestContext?.customTags?.userId,
     extractedFromMessage: extracted,
+    requestMetadata,
   };
 }
 
@@ -373,83 +436,48 @@ async function performDatadogSearch(params: {
   mcpClient: DatadogMCPClient;
 }): Promise<{
   results: unknown[];
-  conciseError?: string;
+  rawData?: string;
+  searchQuery?: string;
+  contextSummary?: string;
 }> {
   const { searchType, timeRange, context, errorIndicators, mcpClient } = params;
 
   let results: unknown[] = [];
-  let conciseError: string | undefined;
+  const searchQuery = buildSearchQuery(context, errorIndicators);
+
+  // Build context summary for the LLM
+  const contextSummary = buildContextSummary(context, errorIndicators);
 
   switch (searchType) {
     case "logs":
-      results = await mcpClient.searchLogs(
-        buildSearchQuery(context, errorIndicators),
-        timeRange
-      );
-
-      if (results.length > 0) {
-        // Extract the most relevant error
-        const validationError = results.find((result: unknown) => {
-          const r = result as Record<string, unknown>;
-          const errorType = r.error_type as string;
-          const message = r.message as string;
-
-          return (
-            errorType?.toLowerCase().includes("validation") ||
-            errorType?.toLowerCase().includes("bad request") ||
-            message?.toLowerCase().includes("required field") ||
-            message?.toLowerCase().includes("missing field") ||
-            message?.toLowerCase().includes("invalid format")
-          );
-        });
-
-        if (validationError) {
-          const r = validationError as Record<string, unknown>;
-          conciseError = `Validation error detected: ${
-            r.message || "form field issue"
-          }`;
-        } else {
-          const r = results[0] as Record<string, unknown>;
-          conciseError = `System error: ${
-            r.message || "backend issue detected"
-          }`;
-        }
-      }
+      results = await mcpClient.searchLogs(searchQuery, timeRange);
       break;
 
     case "metrics":
-      results = await mcpClient.searchMetrics(
-        buildSearchQuery(context, errorIndicators),
-        timeRange
-      );
-      if (results.length > 0) {
-        conciseError = "Performance degradation detected in the system";
-      }
+      results = await mcpClient.searchMetrics(searchQuery, timeRange);
       break;
 
     case "traces":
-      results = await mcpClient.searchTraces(
-        buildSearchQuery(context, errorIndicators),
-        timeRange
-      );
-      if (results.length > 0) {
-        conciseError = "Request processing issues detected";
-      }
+      results = await mcpClient.searchTraces(searchQuery, timeRange);
       break;
 
     case "incidents":
-      results = await mcpClient.searchIncidents(
-        buildSearchQuery(context, errorIndicators),
-        timeRange
-      );
-      if (results.length > 0) {
-        const r = results[0] as Record<string, unknown>;
-        conciseError = `Active incident: ${r.title || "system issue"}`;
-      }
+      results = await mcpClient.searchIncidents(searchQuery, timeRange);
       break;
   }
 
-  return { results, conciseError };
+  // Return raw data for LLM analysis instead of pre-processed messages
+  const rawData =
+    results.length > 0
+      ? JSON.stringify(results.slice(0, 10), null, 2) // Limit to first 10 results to avoid token limits
+      : undefined;
+
+  return {
+    results,
+    rawData,
+    searchQuery,
+    contextSummary,
+  };
 }
 
 // Helper function to build search query from context and error indicators
@@ -499,4 +527,62 @@ function buildSearchQuery(
   }
 
   return queryParts.join(" AND ");
+}
+
+// Helper function to build context summary for LLM analysis
+function buildContextSummary(
+  context: ReturnType<typeof extractContextFromMessage>,
+  errorIndicators: ReturnType<typeof detectErrorIndicators>
+): string {
+  const summaryParts: string[] = [];
+
+  // Add user context
+  if (context.ipAddress) {
+    summaryParts.push(`User IP: ${context.ipAddress}`);
+  }
+
+  if (context.browser && context.os) {
+    summaryParts.push(`Browser: ${context.browser} on ${context.os}`);
+  }
+
+  if (context.device && context.device !== "Desktop") {
+    summaryParts.push(`Device: ${context.device}`);
+  }
+
+  if (context.userId) {
+    summaryParts.push(`User ID: ${context.userId}`);
+  }
+
+  // Add environment context
+  if (context.environment) {
+    summaryParts.push(`Environment: ${context.environment}`);
+  }
+
+  if (context.service) {
+    summaryParts.push(`Service: ${context.service}`);
+  }
+
+  // Add error context
+  if (context.errorCode) {
+    summaryParts.push(`Error Code: ${context.errorCode}`);
+  }
+
+  if (context.field) {
+    summaryParts.push(`Field: ${context.field}`);
+  }
+
+  if (context.endpoint) {
+    summaryParts.push(`Endpoint: ${context.endpoint}`);
+  }
+
+  // Add error indicators
+  if (errorIndicators.indicators.length > 0) {
+    summaryParts.push(
+      `Error Indicators: ${errorIndicators.indicators.join(", ")}`
+    );
+  }
+
+  summaryParts.push(`Severity: ${errorIndicators.severity}`);
+
+  return summaryParts.join(" | ");
 }
