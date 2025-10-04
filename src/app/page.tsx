@@ -6,10 +6,18 @@ import { Actor } from "../../director";
 export default function Home() {
   const actor = new Actor();
 
-  const handleClick = () => {
-    actor.type('input[name="firstName"]', "John", false);
-    actor.type('input[name="lastName"]', "Doe", false);
-    actor.click('button[data-intent="settings.update-name.actions.update"]');
+  const handleClick = async () => {
+    await actor.type(
+      'input[data-intent="settings.update-name.fields.firstName"]',
+      "John"
+    );
+    await actor.type(
+      'input[data-intent="settings.update-name.fields.lastName"]',
+      "Doe"
+    );
+    await actor.click(
+      'button[data-intent="settings.update-name.actions.submit"]'
+    );
   };
 
   return (

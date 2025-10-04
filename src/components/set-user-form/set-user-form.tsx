@@ -26,7 +26,7 @@ export function SetUserForm() {
   });
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
-    console.log(values);
+    alert("Form submitted with values: " + JSON.stringify(values));
   };
 
   return (
@@ -71,7 +71,7 @@ export function SetUserForm() {
             </FormItem>
           )}
         />
-        <Button data-intent="settings.update-name.actions.update" type="submit">
+        <Button data-intent="settings.update-name.actions.submit" type="submit">
           Submit
         </Button>
       </form>

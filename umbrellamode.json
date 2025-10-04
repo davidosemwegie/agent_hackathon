@@ -13,7 +13,7 @@
                     }
                 },
                 "actions": {
-                    "update": {
+                    "submit": {
                         "description": "Update the user's name",
                         "parameters": {
                             "firstName": "string",

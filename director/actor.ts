@@ -33,7 +33,7 @@ export class Actor {
     element.dispatchEvent(clickEvent);
   }
 
-  async type(selector: string, text: string, simulateTyping: boolean = false) {
+  async type(selector: string, text: string, simulateTyping: boolean = true) {
     // Find the element using native DOM methods
     const element = document.querySelector(selector);
 
