@@ -55,6 +55,10 @@ const Widget = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
+      api: "http://localhost:8000/agent/chat",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: {
         affordances: collectAffordances(),
         pageSnapshot: collectPageSnapshot(),
@@ -432,7 +436,7 @@ const Widget = () => {
       </div>
 
       {/* Input area - fixed at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 p-4">
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-red-500">
         <PromptInput
           onSubmit={handleSubmit}
           className="w-full max-w-2xl mx-auto relative"
